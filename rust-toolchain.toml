@@ -7,6 +7,12 @@
 # one the hook finds and the one a bare `cargo test` reads.
 [toolchain]
 channel = "1.95.0"
+# Named rather than left to whatever rustup happens to have. A runner resolves
+# this toolchain from nothing, and `cargo fmt` there failed with `cargo-fmt is
+# not installed` — the targets below are installed because they are listed, and
+# the same is true of these. CI is also the reason they are here at all: on a
+# machine that already had them, their absence was invisible.
+components = ["rustfmt", "clippy"]
 targets = [
   # Android
   "armv7-linux-androideabi",
