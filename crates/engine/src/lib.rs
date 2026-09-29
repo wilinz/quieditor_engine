@@ -5,7 +5,7 @@
 //! `flatbuffers`, and no `unsafe` — see the lint below. Everything is a plain
 //! function over plain Rust types, so it can be exercised with `cargo test`.
 //!
-//! The companion crate `re_editor_ffi` is the shim that carries these results
+//! The companion crate `quieditor_ffi` is the shim that carries these results
 //! across the C ABI.
 //!
 //! # Why this exists
@@ -24,7 +24,7 @@ pub mod chunk;
 pub mod highlight;
 pub mod search;
 
-/// The version of the C ABI the `re_editor_ffi` shim exposes.
+/// The version of the C ABI the `quieditor_ffi` shim exposes.
 ///
 /// Dart compares this against the value it was compiled against; a mismatch
 /// means the bundled native library is stale and the Dart side falls back to

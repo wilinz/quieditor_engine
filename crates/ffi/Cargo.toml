@@ -5,7 +5,7 @@
 # build wants — it is the type that exports a module rather than a Rust library
 # — which is why the browser needs no crate of its own here.
 [package]
-name = "re_editor_ffi"
+name = "quieditor_ffi"
 description = "The C ABI over quieditor_engine, for Dart and for the browser."
 version.workspace = true
 edition.workspace = true
