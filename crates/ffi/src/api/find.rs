@@ -54,6 +54,10 @@ pub unsafe extern "C" fn re_editor_doc_find(
 /// `search` argument, handed back unchanged. Several searches can be in flight
 /// at once and the worker has no idea which one it is running, so this is the
 /// only thing that connects an answer to the call waiting for it.
+///
+/// If that value is an address, whatever it addresses has to stay alive until
+/// this callback has **returned** — see [`re_editor_doc_find_async`] for why
+/// that is a longer obligation than it sounds like.
 pub type FindCallback = extern "C" fn(*mut u8, usize, usize);
 
 /// Runs a search on a worker thread and calls `callback` with the result.
@@ -76,6 +80,20 @@ pub type FindCallback = extern "C" fn(*mut u8, usize, usize);
 /// here and returned instead would arrive too late to be filed under anything:
 /// the caller does not have it until this function returns, and nothing on this
 /// side stops the worker from finishing first.
+///
+/// It is a `usize` rather than a pointer, so this signature cannot say what it
+/// means or what has to stay alive. If the caller uses it as an address, it
+/// must stay valid until the callback has **returned**. That is longer than it
+/// reads as, and the difference is not academic: a callback's usual job is to
+/// wake a thread that is waiting, and a woken thread can read its answer, do
+/// its work and go out of scope while the callback is still running. A caller
+/// that waits for the answer and then frees what `search` points at has freed
+/// it underneath the callback.
+///
+/// The obligation cannot be moved to this side. The value is the caller's — it
+/// names something only the caller knows about — and anything issued here would
+/// have to reach the caller before the worker could finish, which is a race the
+/// caller cannot win by being careful.
 ///
 /// Returns 0 when the work was handed off. A negative return means it was not,
 /// and the callback will not be called — the caller should fall back to its own
@@ -345,13 +363,22 @@ mod tests {
     ///
     /// It hands the pair back over a channel: the test is on the other thread,
     /// and the callback running at all is half of what is being checked. The
-    /// `search` value is the address of that channel's sender, which is what the
+    /// `search` value is a `Box<Sender>` the call handed over, which is what a
     /// caller would use the parameter for — the callback has no other way to
     /// know which search it is answering.
+    ///
+    /// It takes ownership of that box rather than borrowing a sender that lives
+    /// in the test's frame, which is what it used to do and what made this a
+    /// use-after-free. `send` notifies the waiting receiver *after* enqueueing,
+    /// so the test could wake, finish, and drop its `Sender` while the worker
+    /// was still inside `send` on it. On glibc that is a segfault about one run
+    /// in two, and everything about it points at the channel rather than at the
+    /// test.
     extern "C" fn answer(response: *mut u8, length: usize, search: usize) {
-        // SAFETY: the test keeps the sender alive until this has run — it is
-        // waiting on the receive — and handed its address over as `search`.
-        let sender = unsafe { &*(search as *const std::sync::mpsc::Sender<Answer>) };
+        // SAFETY: `search` is the box the call made with `Box::into_raw`, and
+        // this is the only reconstruction of it. Dropping it here is what keeps
+        // the sender alive for as long as `send` needs it.
+        let sender = unsafe { Box::from_raw(search as *mut std::sync::mpsc::Sender<Answer>) };
         let _ = sender.send((response as usize, length, search));
     }
 
@@ -360,10 +387,12 @@ mod tests {
         let doc = create("alpha\nbeta\ngamma", 3);
         let request = request("beta", true, false);
         let (sender, receiver) = std::sync::mpsc::channel::<Answer>();
-        let search = &sender as *const _ as usize;
+        // The sender is handed to the worker rather than lent to it, and the
+        // worker drops it when the callback returns. See `answer`.
+        let search = Box::into_raw(Box::new(sender)) as usize;
 
-        // SAFETY: `request` is a live buffer, and the sender outlives the
-        // callback — the receive below is what waits for it.
+        // SAFETY: `request` is a live buffer, and `search` is a box the call
+        // below takes ownership of.
         let handed_off = unsafe {
             re_editor_doc_find_async(doc, request.as_ptr(), request.len(), Some(answer), search)
         };
@@ -414,17 +443,13 @@ mod tests {
         let doc = create("alpha\nbeta\ngamma", 3);
         let request = request("beta", true, false);
         let (sender, receiver) = std::sync::mpsc::channel::<Answer>();
+        // Handed over, not lent. See `answer`.
+        let search = Box::into_raw(Box::new(sender)) as usize;
 
-        // SAFETY: `request` is a live buffer, and the sender outlives the
-        // callback — the receive below is what waits for it.
+        // SAFETY: `request` is a live buffer, and `search` is a box the call
+        // below takes ownership of.
         let handed_off = unsafe {
-            re_editor_doc_find_async(
-                doc,
-                request.as_ptr(),
-                request.len(),
-                Some(answer),
-                &sender as *const _ as usize,
-            )
+            re_editor_doc_find_async(doc, request.as_ptr(), request.len(), Some(answer), search)
         };
         assert_eq!(handed_off, 0, "the search went to a worker");
 
