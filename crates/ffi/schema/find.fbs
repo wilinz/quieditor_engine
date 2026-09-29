@@ -1,0 +1,39 @@
+// Finding text in the document the native side already holds.
+//
+// There is no document in the request, for the same reason the chunk analysis
+// has none: the handle is the document, and search reads the flattened view of
+// it — folded regions expanded — so what the user hid stays findable.
+namespace re_editor.ffi;
+
+table FindRequest {
+  /// What to look for. Matched as a regular expression when `regex` is set,
+  /// and as literal text otherwise.
+  pattern: string;
+
+  /// Whether the pattern is case-sensitive.
+  case_sensitive: bool;
+
+  /// Whether the pattern is a regular expression.
+  regex: bool;
+}
+
+/// A match, as line and offset in the **flattened** view.
+///
+/// Offsets are UTF-16 code units, which is what the Dart editor model counts
+/// in; the engine works in bytes and the conversion happens on the way out.
+struct FindMatch {
+  start_line: uint;
+  start_offset: uint;
+  end_line: uint;
+  end_offset: uint;
+}
+
+table FindResponse {
+  /// Matches in reading order, not overlapping.
+  matches: [FindMatch];
+
+  /// The document revision this searched.
+  revision: ulong;
+}
+
+root_type FindResponse;

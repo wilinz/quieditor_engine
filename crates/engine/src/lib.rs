@@ -38,7 +38,9 @@ pub mod search;
 /// that took one has changed what its first parameter means — and the value
 /// `re_editor_doc_find_async` echoes back to its callback is one of those
 /// rather than a pointer the caller had to keep alive.
-pub const ABI_VERSION: u32 = 4;
+/// 5: added `re_editor_alloc`. The browser has no allocator on its side of the
+/// boundary, so it has to ask this one for the room a request goes in.
+pub const ABI_VERSION: u32 = 5;
 
 /// The crate version, as recorded in `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -1,0 +1,24 @@
+# The algorithms on their own, with no knowledge of the FFI boundary or of
+# Flutter, and with no `unsafe` in them anywhere — the crate forbids it. It
+# builds and tests without the shim beside it: `cargo test -p quieditor_engine`
+# is the whole of what this crate needs, and a bare `cargo test` in this
+# directory does the same, because nothing here depends on the workspace.
+[package]
+name = "quieditor_engine"
+description = "A code editor's text model, folding, search and syntax highlighting, in pure Rust."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# `regress` rather than the `regex` crate: search replaced Dart's `RegExp`,
+# which is ECMAScript, and the two disagree about what `\d`, `\w` and `.`
+# match. `regress` implements the ECMAScript dialect, so the patterns users
+# have already written keep meaning the same thing.
+regress = "0.12"
+
+# Deserialising the grammar JSON the Dart side sends.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

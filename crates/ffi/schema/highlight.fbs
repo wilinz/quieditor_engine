@@ -1,0 +1,151 @@
+// Highlighting code with a grammar the Dart side already has.
+//
+// Unlike the other operations there is no document handle here. A document is
+// edited and so has a life of its own; a grammar does not — it is compiled once
+// and used to highlight whichever text arrives, which is what the grammar
+// handle is for. The text crosses with every call, because the caller is the
+// one holding it.
+namespace re_editor.ffi;
+
+/// A grammar to compile, and the sub-grammars it refers to.
+///
+/// The JSON is the shape `re_highlight` describes its languages in: the field
+/// names are that package's own, so a grammar can be diffed against its Dart
+/// source by reading the two side by side.
+table GrammarRequest {
+  json: string;
+
+  /// Grammars this one names in a `subLanguage` rule, by name — Markdown's
+  /// embedded HTML, or a template language's embedded JSON.
+  ///
+  /// They travel with the request rather than being looked up on the Rust side,
+  /// which holds no languages of its own: a rule whose sub-language is absent
+  /// shows its text plain, so leaving one out is a visible difference rather
+  /// than a failure.
+  sub_languages: [SubGrammar];
+}
+
+table SubGrammar {
+  name: string;
+  json: string;
+}
+
+/// A piece of code to highlight.
+table HighlightRequest {
+  /// The whole of the text to highlight, lines separated by `\n`.
+  ///
+  /// A grammar's state carries from one line to the next, so this is the text
+  /// from where the caller last knew that state — in practice the whole
+  /// document, until the engine can be asked to resume part-way through it.
+  code: string;
+}
+
+/// One scope, over a span of the request's code.
+///
+/// A span is given the way `FindMatch` gives a match — lines, and UTF-16
+/// offsets within them — because the editor is what reads this and lines are
+/// what it draws in. The end is exclusive. A span contains the spans of every
+/// node nested inside it, so the tree can be rebuilt from this list alone, and
+/// it has to be: the list is flat.
+table HighlightNode {
+  /// The class name a theme keys on, such as `string` or `keyword`. Never
+  /// empty: a node with no scope of its own is not reported, and its scoped
+  /// children are reported as though it were not there.
+  scope: string;
+
+  start_line: uint;
+  start_offset: uint;
+  end_line: uint;
+  end_offset: uint;
+
+  /// How many reported nodes enclose this one, so that a client can nest them
+  /// without searching. A top-level node has depth 0, and its children 1.
+  depth: uint;
+}
+
+table HighlightResponse {
+  /// Every scoped node in the code, in reading order, each one before the nodes
+  /// it contains.
+  nodes: [HighlightNode];
+
+  /// What the grammar found, on highlight.js's scale — how much of the document
+  /// looked like what this language is made of.
+  ///
+  /// This is the only thing that decides which language a document is written
+  /// in: `highlightAuto` scores every candidate and takes the highest. A
+  /// grammar that hit an `illegal` rule scores nothing, and is not a candidate
+  /// at all.
+  relevance: double;
+}
+
+root_type HighlightResponse;
+
+/// A document the native side highlights in pieces, so an edit costs the lines
+/// it touched rather than the whole document.
+///
+/// The text crosses once, here, and after that only the edits do: the states
+/// recorded between lines are what makes that possible, and they live on the
+/// native side because they are not a thing to send per keystroke.
+table HighlighterRequest {
+  /// The grammar, in the same shape `GrammarRequest` takes.
+  json: string;
+  sub_languages: [SubGrammar];
+
+  /// The document, lines joined with `\n`.
+  text: string;
+}
+
+/// An edit to the document, in whole lines — the shape a splice has.
+table HighlighterSpliceRequest {
+  /// The first line replaced.
+  start: uint;
+  /// How many lines it replaces.
+  removed: uint;
+  /// The lines it is replaced with. None removes lines; one replaces a line.
+  added: [string];
+}
+
+/// What an edit changed.
+table HighlighterUpdateResponse {
+  /// The first line whose spans are new.
+  from: uint;
+  /// One past the last line whose spans are new, counting the document as it is
+  /// now. From here on every line has the spans it had.
+  to: uint;
+  /// One past the last line the caller's spans covered, counting the document as
+  /// it was: the caller replaces `from..replaced` of its own with `from..to` of
+  /// this.
+  replaced: uint;
+  /// The spans for `from..to`, in reading order.
+  nodes: [HighlightNode];
+  /// One past the last line the highlighter now has highlighted: the length the
+  /// caller's spans should have after the splice above. An edit past that line
+  /// changes nothing, and answers with nothing.
+  scanned_to: uint;
+}
+
+/// How far to highlight a document that is being highlighted in pieces.
+table HighlighterSpansRequest {
+  /// One past the last line the caller needs, clamped to the document.
+  ///
+  /// The scan always carries on from where the last one stopped rather than
+  /// starting here: a grammar's state runs from line to line, so a prefix is the
+  /// only thing that can be computed, and the line asked for is where the walk
+  /// may stop and not where it begins.
+  to: uint;
+}
+
+/// What one forward scan added.
+table HighlighterSpansResponse {
+  /// One past the last line the caller already had — the watermark this scan
+  /// carried on from. A caller whose own spans do not reach this far has lost
+  /// step with the document and has to start again from nothing.
+  from: uint;
+  /// One past the last line this covers: the new watermark, and the length the
+  /// caller's spans now have. Not the line it was asked for — a rule match
+  /// cannot be cut in two, so a scan stops at a line start at or past its
+  /// target, and this is where it did.
+  to: uint;
+  /// The spans for `from..to`, in reading order.
+  nodes: [HighlightNode];
+}

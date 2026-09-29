@@ -1,0 +1,23 @@
+# The C ABI over `quieditor_engine`, one `#[no_mangle] extern "C"` function per
+# operation, and the WebAssembly module built from the same source.
+#
+# The crate-type below is what makes both possible. `cdylib` is also what a wasm
+# build wants — it is the type that exports a module rather than a Rust library
+# — which is why the browser needs no crate of its own here.
+[package]
+name = "re_editor_ffi"
+description = "The C ABI over quieditor_engine, for Dart and for the browser."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+# `native_toolchain_rust` requires both: the staticlib is linked into the app,
+# the cdylib is what flutter_tester and `flutter run` load at runtime.
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+quieditor_engine.workspace = true
+flatbuffers.workspace = true

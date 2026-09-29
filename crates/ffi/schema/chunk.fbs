@@ -1,0 +1,29 @@
+// Bracket ("chunk") analysis: finding the regions the editor can fold.
+//
+// There is no request table: the input is the document handle, which the native
+// side already holds. That is the point of the handle — the whole document used
+// to cross this boundary on every keystroke, and now only the edits do.
+namespace re_editor.ffi;
+
+/// A collapsible region: the line that opens it and the line that closes it.
+///
+/// A `struct` rather than a `table` so the vector below stores them inline.
+/// They are two integers and there can be thousands of them, which is exactly
+/// the case structs exist for.
+struct Chunk {
+  index: uint;
+  end: uint;
+}
+
+table ChunkAnalyzeResponse {
+  /// Regions in ascending order of opening line.
+  chunks: [Chunk];
+
+  /// The document's revision this analysis was made from.
+  ///
+  /// The caller compares it against the current revision to tell whether the
+  /// answer still describes the document it is looking at.
+  revision: ulong;
+}
+
+root_type ChunkAnalyzeResponse;

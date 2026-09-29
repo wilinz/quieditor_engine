@@ -415,22 +415,45 @@ mod tests {
         assert_eq!(Chunk { index: 5, end: 2 }.collapse_size(), 0);
     }
 
+    /// The same object twice: once laid out, once collapsed onto one line.
+    ///
+    /// Both at once because a fold analysis has two ways to be wrong and a
+    /// single sample only catches one of them. The laid-out one says where the
+    /// regions are; the flat one says that a line holding the whole object has
+    /// none, which is what a scan that loses its nesting depth — or one that
+    /// counts a brace inside a string — gets wrong.
+    ///
+    /// Written into the test rather than kept as a file beside it: these were
+    /// fixtures in the editor's repository once, reached out of the crate for,
+    /// which made this crate's own tests fail to compile when it was cloned on
+    /// its own. Two hundred bytes of document do not need a directory to live
+    /// in.
     #[test]
-    fn the_shipped_json_samples_produce_the_expected_chunks() {
-        // Deliberately the *same* fixture files the Dart suite uses, and the
-        // same expected values (`test/code_chunk_default_analyzer_test.dart`).
-        // Reaching out of the crate for them is the point: two copies of a
-        // fixture would eventually disagree, and the disagreement would be
-        // invisible.
-        let pretty = include_str!("../../../test/data/json_pretty.json");
-        let pretty_lines: Vec<&str> = pretty.lines().collect();
+    fn the_json_samples_produce_the_expected_chunks() {
+        let pretty = r#"{
+    "abc": {
+        "foo": [
+            "bar"
+        ]
+    },
+    "123": [
+        {
+            "foo": "bar",
+            "bar": "foo"
+        },
+        {
+            "foo": "bar",
+            "bar": "foo"
+        }
+    ],
+    "foo": "bar"
+}"#;
         assert_eq!(
-            analyze(pretty_lines),
+            analyze(pretty.lines()),
             chunks(&[(0, 17), (1, 5), (2, 4), (6, 15), (7, 10), (11, 14)])
         );
 
-        let flat = include_str!("../../../test/data/json_flatted.json");
-        let flat_lines: Vec<&str> = flat.lines().collect();
-        assert_eq!(analyze(flat_lines), vec![]);
+        let flat = r#"{"abc": {"foo": ["bar"]},"123": [{"foo": "bar","bar": "foo"},{"foo": "bar","bar": "foo"}],"foo": "bar"}"#;
+        assert_eq!(analyze(flat.lines()), vec![]);
     }
 }

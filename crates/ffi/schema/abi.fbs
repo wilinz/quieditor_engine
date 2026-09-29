@@ -1,0 +1,24 @@
+// Wire format between the Dart editor and the Rust core.
+//
+// Conventions that hold for every schema in this directory:
+//
+//   * Requests are built by Dart and read zero-copy by Rust.
+//   * Responses are built by Rust, returned as a (pointer, length) pair, read
+//     zero-copy by Dart, and released with `re_editor_free`.
+//   * Text crossing the boundary is UTF-8. Offsets in these tables are UTF-16
+//     code units, because that is what Flutter's text APIs and the existing
+//     Dart editor model count in. Rust converts at the edges.
+namespace re_editor.ffi;
+
+/// Identity of the loaded native library.
+///
+/// The Dart side requests this once at start-up and compares `abi_version`
+/// against the constant it was compiled with. A stale bundled library is
+/// otherwise very hard to diagnose: the symbols resolve and the calls succeed,
+/// but the tables are laid out differently.
+table AbiInfo {
+  abi_version:uint;
+  core_version:string;
+}
+
+root_type AbiInfo;

@@ -1,24 +1,56 @@
-# The algorithms on their own, with no knowledge of the FFI boundary or of
-# Flutter. Everything here builds and tests with a bare `cargo test` in this
-# directory: the crate is deliberately not a member of the workspace above, so
-# that it can be published, vendored or moved out from under the editor without
-# dragging any of it along.
-[package]
-name = "quieditor_engine"
-description = "A code editor's text model, folding, search and syntax highlighting, in pure Rust."
-version = "0.1.0"
+# A code editor's text model, folding, search and syntax highlighting, and the
+# C ABI it is reached through.
+#
+# Two crates, because they have different jobs and are held to different rules:
+#
+#   crates/engine  the algorithms. No `unsafe` at all — the crate forbids it —
+#                  no knowledge of any boundary, and useful on its own.
+#   crates/ffi     the C ABI, and the WebAssembly module built from that same
+#                  source. There is no algorithm here, and the unsafe code that
+#                  the engine is denied lives here instead.
+#
+# The shim is compiled for every platform from the one crate, the browser
+# included: it builds for wasm32 unmodified. The one thing that differs there is
+# a worker thread, which wasm has none of — and that already has an answer the
+# caller handles, so there is nothing to configure per target.
+[workspace]
+resolver = "2"
+members = ["crates/engine", "crates/ffi"]
+
+[workspace.package]
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.95"
 license = "MIT"
 repository = "https://github.com/wilinz/quieditor_engine"
 
-[dependencies]
-# `regress` rather than the `regex` crate: search replaced Dart's `RegExp`,
-# which is ECMAScript, and the two disagree about what `\d`, `\w` and `.`
-# match. `regress` implements the ECMAScript dialect, so the patterns users
-# have already written keep meaning the same thing.
-regress = "0.12"
+[workspace.dependencies]
+quieditor_engine = { path = "crates/engine" }
 
-# Deserialising the grammar JSON the Dart side sends.
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# Only the shim speaks FlatBuffers; the engine has no schema knowledge, and
+# carries its own dependencies in its own manifest.
+flatbuffers = "25.12"
+
+[profile.release]
+# The shim hands whole documents to the engine to chew on, so this optimises for
+# throughput even at the cost of build time.
+lto = true
+codegen-units = 1
+
+# The browser build. Optimised for throughput for the same reason — what runs
+# here is a highlighter over a document, where size is the lesser cost — but
+# stripped and in one codegen unit, which between them take about two thirds
+# off the module.
+#
+# `panic = "abort"` is not so much a setting as a statement of what wasm already
+# does. `wasm32-unknown-unknown` has no unwinding, so the `catch_unwind` in the
+# shim's `guard` cannot catch anything there: a panic reaches `unreachable`, the
+# module traps, and the instance is finished. Written down here because it is
+# worth knowing at the call site, and a reader of the shim would otherwise
+# reasonably assume `guard` works everywhere.
+[profile.wasm]
+inherits = "release"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

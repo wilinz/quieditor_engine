@@ -1,0 +1,81 @@
+// The document handle: the Rust side owns the text, Dart sends only edits.
+//
+// The handle itself never crosses as a FlatBuffer — it is an opaque pointer,
+// because it is a live object rather than a value. What crosses are the edits
+// applied to it.
+namespace re_editor.ffi;
+
+/// The lines a document opens with.
+///
+/// The same four fields a splice carries, for the same reasons, and sharing the
+/// encoding is not a coincidence: a document that arrived without its folded
+/// content and then received an edit that included it would have two kinds of
+/// line in it, and the difference would only show up as a search that misses.
+table CreateRequest {
+  /// The lines' own text, joined with `\n`.
+  text: string;
+
+  /// How many lines `text` holds.
+  lines: uint;
+
+  /// Every line the above hide, concatenated in order and joined with `\n`.
+  hidden: string;
+
+  /// How many of `hidden`'s lines belong to each of `text`'s.
+  hidden_counts: [uint];
+}
+
+/// Replaces a span of lines in a document.
+///
+/// The unit is whole lines, not character offsets, because that is what the
+/// Dart model changes and what every consumer here works in. A keystroke is a
+/// splice of one line.
+///
+/// The replacement lines travel as one string plus a count rather than as a
+/// `[string]` vector, which is both cheaper — one buffer instead of one per
+/// line, and no vector to lay down — and the same shape [`re_editor_doc_create`]
+/// already takes. `added` is what makes the split checkable; without it a line
+/// containing a newline would silently become two.
+table SpliceRequest {
+  /// First line to replace.
+  start: uint;
+
+  /// How many lines to drop, starting at `start`. Zero inserts.
+  removed: uint;
+
+  /// How many lines `text` holds. Zero deletes.
+  added: uint;
+
+  /// The replacement lines' own text, joined with `\n`.
+  text: string;
+
+  /// Every line the replacements hide, concatenated in order and joined with
+  /// `\n`.
+  ///
+  /// Empty for a document with nothing folded, which is the usual case — the
+  /// editor reads the collapsed view on every keystroke and only needs the
+  /// hidden lines to answer a search.
+  hidden: string;
+
+  /// How many of `hidden`'s lines belong to each of `text`'s.
+  ///
+  /// A vector of counts rather than a nested structure because FlatBuffers'
+  /// Dart side has no vector-of-offsets builder, and because the counts are
+  /// almost all zero: `hidden` stays one small string instead of a table per
+  /// line.
+  hidden_counts: [uint];
+}
+
+table SpliceResponse {
+  /// Whether the document actually changed.
+  ///
+  /// Replacing a line with an identical one is not a change, and saying so
+  /// would make `revision` useless to anyone using it to decide whether cached
+  /// work is still valid.
+  changed: bool;
+
+  /// The document's revision after the splice.
+  revision: ulong;
+}
+
+root_type SpliceResponse;

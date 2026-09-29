@@ -1,9 +1,10 @@
 # Pin an exact version rather than a channel so builds are reproducible.
 # `native_toolchain_rust` rejects `stable` / `beta` / `nightly` for this reason.
 #
-# Keep this file and `ffi/rust-toolchain.toml` in sync: the build hook reads the
-# one next to the crate it builds, while a bare `cargo test` at the workspace
-# root reads this one.
+# One file for the workspace. There used to be a second one beside the shim,
+# because the build hook reads the toolchain next to the crate it builds and the
+# shim lived in another repository; both crates are here now, so this one is the
+# one the hook finds and the one a bare `cargo test` reads.
 [toolchain]
 channel = "1.95.0"
 targets = [
@@ -28,4 +29,9 @@ targets = [
   # macOS
   "aarch64-apple-darwin",
   "x86_64-apple-darwin",
+
+  # The browser. The only target here that is not a platform Flutter links a
+  # static library into — the module is fetched at run time instead, which is
+  # why it is built `--profile wasm` rather than `--release`.
+  "wasm32-unknown-unknown",
 ]

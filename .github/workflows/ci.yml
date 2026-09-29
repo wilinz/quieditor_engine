@@ -1,0 +1,36 @@
+# The checks that say the crate is what it claims to be.
+#
+# `cargo test` runs the engine's tests and the shim's together, which is the
+# point of the two being in one workspace: the shim's tests go through the C ABI
+# the way a caller does, so a change to the wire format fails here rather than
+# in an application.
+#
+# Not `-D warnings`. There is one standing warning — `Engine` in the highlighter
+# has no `Debug`, which the engine's own lint list asks for — and turning every
+# warning into a failure would mean either silencing the lint or writing a
+# `Debug` for a borrowed view of a document, neither of which is a test's
+# business. Clippy is run on its own so a real one is still visible.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: cargo fmt --all -- --check
+      - run: cargo test --workspace
+      - run: cargo clippy --workspace --all-targets

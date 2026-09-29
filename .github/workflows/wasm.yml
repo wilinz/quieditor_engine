@@ -1,0 +1,118 @@
+# Builds the shim as WebAssembly and publishes it, so that running the editor in
+# a browser does not require a Rust toolchain.
+#
+# The Dart package does not commit this module. A compiled artifact sitting
+# beside the sources it came from goes out of step with them, and one did
+# exactly that in the project this arrangement was copied from: a live demo
+# served a fixed bug for a while, because rebuilding was a step someone had to
+# remember. Building it here is what keeps anyone else from having to, and a
+# push to this repository is when it has to change.
+#
+# The module is the whole of the Rust side. There is no second repository to
+# check out beside this one and no C library to link, which is why this job is
+# shorter than the one it is modelled on — the engine carries its own
+# dependencies and the shim is compiled for wasm32 unmodified.
+name: wasm
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# A newer push wins; there is no point publishing a module that is already
+# behind by the time it lands.
+concurrency:
+  group: wasm
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # No `rustup target add`: rust-toolchain.toml names wasm32-unknown-unknown
+      # among its targets, so resolving the toolchain installs it. The compiler
+      # is therefore the one this repository pins, and what is published is what
+      # a developer would have built.
+      - name: Build
+        run: cargo build -p re_editor_ffi --target wasm32-unknown-unknown --profile wasm
+
+      # What it is, so that a module found on a disk months from now can be
+      # traced back to the source that produced it. The checksum is what a
+      # consumer's lock file pins, and it is written here rather than computed
+      # there because this is the only place that knows what went in.
+      - name: Describe it
+        run: |
+          out=target/wasm32-unknown-unknown/wasm
+          {
+            echo "repository=$GITHUB_REPOSITORY"
+            echo "commit=$GITHUB_SHA"
+            echo "ref=$GITHUB_REF_NAME"
+            echo "rustc=$(rustc --version)"
+            echo "profile=wasm"
+            echo "built=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "sha256=$(sha256sum $out/re_editor_ffi.wasm | cut -d' ' -f1)"
+          } > $out/re_editor_ffi.build
+          cat $out/re_editor_ffi.build
+
+      # For looking at a run that went wrong. Artifacts expire and release
+      # assets do not, so this is not where anyone should be fetching from.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: re_editor_ffi
+          retention-days: 14
+          path: |
+            target/wasm32-unknown-unknown/wasm/re_editor_ffi.wasm
+            target/wasm32-unknown-unknown/wasm/re_editor_ffi.build
+
+      # Two releases, answering two different questions. `wasm-latest` moves: it
+      # is whatever main built, which is what a demonstration page serves, so
+      # the two cannot disagree — right for someone tracking development, wrong
+      # for anyone who wants the same bytes tomorrow. A version tag gets a
+      # release of its own that never moves, and that is the one a lock file
+      # names.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          out=target/wasm32-unknown-unknown/wasm
+          upload() {
+            gh release upload "$1" \
+              "$out/re_editor_ffi.wasm" "$out/re_editor_ffi.build" --clobber
+          }
+
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            # --latest, because wasm-latest is a prerelease and would otherwise
+            # leave the repository with no release marked as the current one.
+            gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" \
+              --latest \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+            upload "$GITHUB_REF_NAME"
+            exit 0
+          fi
+
+          gh release view wasm-latest >/dev/null 2>&1 || gh release create wasm-latest \
+            --prerelease \
+            --title "wasm (latest main)" \
+            --notes "The editor's Rust core as WebAssembly, rebuilt on every push to main.
+
+          This tag moves. For bytes that stay put, take a version release.
+
+          \`re_editor_ffi.build\` beside the module names the commit, the
+          compiler and the flags it was built with."
+          upload wasm-latest
+
+          # The assets move on every push; the tag does not, unless it is told
+          # to. Left alone it keeps naming whichever commit first created the
+          # release — months out of date while the notes claim it moves, and
+          # holding a rewritten commit alive if main was ever force-pushed.
+          #
+          # Only from a branch: a tag build publishes its own release and returns
+          # above. `wasm-latest` matches no trigger, so moving it starts nothing.
+          git push -f origin "$GITHUB_SHA:refs/tags/wasm-latest"
