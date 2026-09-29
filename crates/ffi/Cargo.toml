@@ -1,12 +1,18 @@
 # The C ABI over `quieditor_engine`, one `#[no_mangle] extern "C"` function per
-# operation, and the WebAssembly module built from the same source.
+# operation.
 #
-# The crate-type below is what makes both possible. `cdylib` is also what a wasm
-# build wants — it is the type that exports a module rather than a Rust library
-# — which is why the browser needs no crate of its own here.
+# A library, not an artifact. It carries no `cdylib`, because producing one
+# decides how a shared object is named and linked on each platform, and this
+# crate has no business deciding that — a caller that wants a `.dylib` wraps
+# this one and says so itself. Two do: the editor, in its own repository, and
+# `crates/wasm` here.
+#
+# `rlib` is what those two need in order to depend on this at all, and it is the
+# reason this crate is not also the wasm module: a `cdylib`-only crate provides
+# no linkable target, so nothing can be built on top of it.
 [package]
 name = "quieditor_ffi"
-description = "The C ABI over quieditor_engine, for Dart and for the browser."
+description = "The C ABI over quieditor_engine, for callers outside Rust."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,9 +20,8 @@ license.workspace = true
 repository.workspace = true
 
 [lib]
-# `native_toolchain_rust` requires both: the staticlib is linked into the app,
-# the cdylib is what flutter_tester and `flutter run` load at runtime.
-crate-type = ["staticlib", "cdylib"]
+# `staticlib` so that a C caller can link the ABI with no Rust in its build.
+crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 quieditor_engine.workspace = true

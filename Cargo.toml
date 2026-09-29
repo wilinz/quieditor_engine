@@ -1,24 +1,27 @@
 # A code editor's text model, folding, search and syntax highlighting, and the
 # C ABI it is reached through.
 #
-# Two crates, because they have different jobs and are held to different rules:
+# Three crates, because they have different jobs and are held to different
+# rules:
 #
 #   crates/engine  the algorithms. No `unsafe` at all — the crate forbids it —
 #                  no knowledge of any boundary, and useful on its own.
-#   crates/ffi     the C ABI, and the WebAssembly module built from that same
-#                  source. There is no algorithm here, and the unsafe code that
-#                  the engine is denied lives here instead.
+#   crates/ffi     the C ABI. No algorithm, and the unsafe code the engine is
+#                  denied lives here instead. A library, not an artifact: it
+#                  carries no `cdylib`, so that whoever produces one decides how
+#                  it is named and linked.
+#   crates/wasm    the same ABI as a WebAssembly module. Nothing of its own —
+#                  it is the `cdylib`, and the crate above cannot be one.
 #
-# The shim is compiled for every platform from the one crate, the browser
-# included: it builds for wasm32 unmodified. The one thing that differs there is
-# a worker thread, which wasm has none of — and that already has an answer the
-# caller handles, so there is nothing to configure per target.
+# The ABI compiles for wasm32 as it stands, so the browser needs no separate
+# source; it needs a separate crate only because a `cdylib` is what a wasm
+# module is and a `cdylib`-only crate cannot be depended on.
 [workspace]
 resolver = "2"
-members = ["crates/engine", "crates/ffi"]
+members = ["crates/engine", "crates/ffi", "crates/wasm"]
 
 [workspace.package]
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.95"
 license = "MIT"
@@ -26,6 +29,7 @@ repository = "https://github.com/wilinz/quieditor_engine"
 
 [workspace.dependencies]
 quieditor_engine = { path = "crates/engine" }
+quieditor_ffi = { path = "crates/ffi" }
 
 # Only the shim speaks FlatBuffers; the engine has no schema knowledge, and
 # carries its own dependencies in its own manifest.

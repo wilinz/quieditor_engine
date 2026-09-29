@@ -41,7 +41,7 @@ dependencies = [
 
 [[package]]
 name = "quieditor_engine"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "regress",
  "serde",
@@ -50,10 +50,17 @@ dependencies = [
 
 [[package]]
 name = "quieditor_ffi"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "flatbuffers",
  "quieditor_engine",
+]
+
+[[package]]
+name = "quieditor_wasm"
+version = "0.4.0"
+dependencies = [
+ "quieditor_ffi",
 ]
 
 [[package]]

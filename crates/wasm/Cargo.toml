@@ -1,0 +1,21 @@
+# The C ABI as a WebAssembly module, for browsers.
+#
+# Nothing is added to the ABI here and nothing is reimplemented. This crate is
+# the `cdylib`, because the crate that holds the ABI cannot be one — see the
+# note in its manifest — and a wasm module is what a `cdylib` is.
+[package]
+name = "quieditor_wasm"
+description = "The quieditor C ABI as a WebAssembly module, for browsers."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+# The artifact is a .wasm file, not something a Rust caller depends on.
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+quieditor_ffi.workspace = true

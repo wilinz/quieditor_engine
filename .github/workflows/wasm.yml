@@ -40,7 +40,7 @@ jobs:
       # is therefore the one this repository pins, and what is published is what
       # a developer would have built.
       - name: Build
-        run: cargo build -p quieditor_ffi --target wasm32-unknown-unknown --profile wasm
+        run: cargo build -p quieditor_wasm --target wasm32-unknown-unknown --profile wasm
 
       # What it is, so that a module found on a disk months from now can be
       # traced back to the source that produced it. The checksum is what a
@@ -56,19 +56,19 @@ jobs:
             echo "rustc=$(rustc --version)"
             echo "profile=wasm"
             echo "built=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo "sha256=$(sha256sum $out/quieditor_ffi.wasm | cut -d' ' -f1)"
-          } > $out/quieditor_ffi.build
-          cat $out/quieditor_ffi.build
+            echo "sha256=$(sha256sum $out/quieditor_wasm.wasm | cut -d' ' -f1)"
+          } > $out/quieditor_wasm.build
+          cat $out/quieditor_wasm.build
 
       # For looking at a run that went wrong. Artifacts expire and release
       # assets do not, so this is not where anyone should be fetching from.
       - uses: actions/upload-artifact@v4
         with:
-          name: quieditor_ffi
+          name: quieditor_wasm
           retention-days: 14
           path: |
-            target/wasm32-unknown-unknown/wasm/quieditor_ffi.wasm
-            target/wasm32-unknown-unknown/wasm/quieditor_ffi.build
+            target/wasm32-unknown-unknown/wasm/quieditor_wasm.wasm
+            target/wasm32-unknown-unknown/wasm/quieditor_wasm.build
 
       # Two releases, answering two different questions. `wasm-latest` moves: it
       # is whatever main built, which is what a demonstration page serves, so
@@ -83,7 +83,7 @@ jobs:
           out=target/wasm32-unknown-unknown/wasm
           upload() {
             gh release upload "$1" \
-              "$out/quieditor_ffi.wasm" "$out/quieditor_ffi.build" --clobber
+              "$out/quieditor_wasm.wasm" "$out/quieditor_wasm.build" --clobber
           }
 
           if [ "$GITHUB_REF_TYPE" = tag ]; then
@@ -104,7 +104,7 @@ jobs:
 
           This tag moves. For bytes that stay put, take a version release.
 
-          \`quieditor_ffi.build\` beside the module names the commit, the
+          \`quieditor_wasm.build\` beside the module names the commit, the
           compiler and the flags it was built with."
           upload wasm-latest
 
