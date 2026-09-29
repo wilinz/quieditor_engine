@@ -1,0 +1,8 @@
+# Cargo's build output. `Cargo.lock` is deliberately kept rather than ignored
+# the way a library usually would: this crate is built and tested on its own as
+# well as depended on, and a reproducible set of dependencies is worth more than
+# the convention.
+/target/
+
+# macOS
+.DS_Store

@@ -1,0 +1,24 @@
+# The algorithms on their own, with no knowledge of the FFI boundary or of
+# Flutter. Everything here builds and tests with a bare `cargo test` in this
+# directory: the crate is deliberately not a member of the workspace above, so
+# that it can be published, vendored or moved out from under the editor without
+# dragging any of it along.
+[package]
+name = "quieditor_engine"
+description = "A code editor's text model, folding, search and syntax highlighting, in pure Rust."
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95"
+license = "MIT"
+repository = "https://github.com/wilinz/quieditor_engine"
+
+[dependencies]
+# `regress` rather than the `regex` crate: search replaced Dart's `RegExp`,
+# which is ECMAScript, and the two disagree about what `\d`, `\w` and `.`
+# match. `regress` implements the ECMAScript dialect, so the patterns users
+# have already written keep meaning the same thing.
+regress = "0.12"
+
+# Deserialising the grammar JSON the Dart side sends.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
