@@ -83,7 +83,7 @@ void main(List<String> args) {
       final File? rust = _findStaged(staged, base, '_generated.rs');
       if (rust == null) {
         stderr.writeln(
-          'flatc produced no Rust output for ${base}.fbs. The emitter names '
+          'flatc produced no Rust output for $base.fbs. The emitter names '
           'its file after the namespace; check the schema declares one.',
         );
         exitCode = 1;
